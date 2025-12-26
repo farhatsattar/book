@@ -43,8 +43,5 @@ After completing this chapter, you will be able to:
 - Identify key components of Physical AI systems
 - Understand the relationship between sensing, actuation, and intelligence
 
-## Navigation
 
-- [Core Physical AI Concepts](concepts.md)
-- [History and Evolution](history.md)
-- [Physical AI vs. Traditional AI](comparison.md)
+
