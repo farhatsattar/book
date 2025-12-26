@@ -45,6 +45,6 @@ After completing this chapter, you will be able to:
 
 ## Navigation
 
-- [Core Physical AI Concepts](../concepts.md)
-- [History and Evolution](../history.md)
-- [Physical AI vs. Traditional AI](../comparison.md)
+- [Core Physical AI Concepts](concepts.md)
+- [History and Evolution](history.md)
+- [Physical AI vs. Traditional AI](comparison.md)
