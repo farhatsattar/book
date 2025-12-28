@@ -106,11 +106,41 @@
             <input type="text" id="user-input" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
             <button id="send-btn" onclick="sendMessage()">Send</button>
         </div>
+
+        <div style="margin-top: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
+            <label for="session-id">Session ID (optional):</label>
+            <input type="text" id="session-id" placeholder="Leave blank for temporary session" style="width: 70%; padding: 5px; margin-right: 10px;">
+            <button onclick="generateSessionId()">New Session</button>
+        </div>
     </div>
 
     <script>
         const API_BASE_URL = 'http://localhost:8000';
         let conversationHistory = [];
+        let selectedText = null;
+
+        // Function to handle text selection
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            if (selection.toString().trim() !== '') {
+                selectedText = selection.toString().trim();
+                console.log('Selected text:', selectedText);
+                // Optionally, you could highlight the selected text or provide feedback to the user
+            } else {
+                selectedText = null;
+            }
+        }
+
+        // Add event listener for text selection
+        document.addEventListener('mouseup', handleTextSelection);
+        document.addEventListener('selectionchange', handleTextSelection);
+
+        // Function to generate a new session ID
+        function generateSessionId() {
+            const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('session-id').value = sessionId;
+            return sessionId;
+        }
 
         async function sendMessage() {
             const input = document.getElementById('user-input');
@@ -126,6 +156,8 @@
             const loadingMsg = addMessageToChat('Thinking...', 'bot', 'loading');
 
             try {
+                const sessionId = document.getElementById('session-id').value.trim();
+
                 const response = await fetch(`${API_BASE_URL}/chat`, {
                     method: 'POST',
                     headers: {
@@ -133,7 +165,9 @@
                     },
                     body: JSON.stringify({
                         query: message,
-                        conversation_history: conversationHistory
+                        selected_text: selectedText,
+                        conversation_history: conversationHistory,
+                        session_id: sessionId || null
                     })
                 });
 
@@ -143,11 +177,30 @@
                 document.getElementById(loadingMsg).remove();
 
                 // Add bot response to chat
-                addMessageToChat(data.response, 'bot');
+                let responseText = data.response;
+
+                // Add confidence and sources information if available
+                if (data.confidence !== undefined) {
+                    responseText += `\n\n*Confidence: ${(data.confidence * 100).toFixed(1)}%*`;
+                }
+
+                if (data.sources && data.sources.length > 0) {
+                    responseText += `\n\n*Sources:*\n`;
+                    data.sources.slice(0, 3).forEach((source, index) => {
+                        const title = source.title || 'Unknown source';
+                        const url = source.url || '';
+                        responseText += `- ${title} ${url ? `(${url})` : ''}\n`;
+                    });
+                }
+
+                addMessageToChat(responseText, 'bot');
 
                 // Update conversation history
                 conversationHistory.push({role: 'user', content: message});
                 conversationHistory.push({role: 'assistant', content: data.response});
+
+                // Clear selected text after sending the query
+                selectedText = null;
             } catch (error) {
                 // Remove loading indicator
                 document.getElementById(loadingMsg).remove();
@@ -172,6 +225,70 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
             return messageId;
+        }
+
+        // Function to send a direct query (for testing purposes)
+        async function sendQuery() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message to chat
+            addMessageToChat(message, 'user');
+            input.value = '';
+
+            // Show loading indicator
+            const loadingMsg = addMessageToChat('Thinking...', 'bot', 'loading');
+
+            try {
+                const sessionId = document.getElementById('session-id').value.trim();
+
+                const response = await fetch(`${API_BASE_URL}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        selected_text: selectedText,
+                        session_id: sessionId || null
+                    })
+                });
+
+                const data = await response.json();
+
+                // Remove loading indicator
+                document.getElementById(loadingMsg).remove();
+
+                // Add bot response to chat
+                let responseText = data.response;
+
+                // Add confidence and sources information if available
+                if (data.confidence !== undefined) {
+                    responseText += `\n\n*Confidence: ${(data.confidence * 100).toFixed(1)}%*`;
+                }
+
+                if (data.sources && data.sources.length > 0) {
+                    responseText += `\n\n*Sources:*\n`;
+                    data.sources.slice(0, 3).forEach((source, index) => {
+                        const title = source.title || 'Unknown source';
+                        const url = source.url || '';
+                        responseText += `- ${title} ${url ? `(${url})` : ''}\n`;
+                    });
+                }
+
+                addMessageToChat(responseText, 'bot');
+
+                // Clear selected text after sending the query
+                selectedText = null;
+            } catch (error) {
+                // Remove loading indicator
+                document.getElementById(loadingMsg).remove();
+
+                // Show error message
+                addMessageToChat(`Error: ${error.message}`, 'bot');
+            }
         }
 
         async function ingestDocuments() {

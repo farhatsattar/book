@@ -7,8 +7,11 @@ from dotenv import load_dotenv
 import sys
 import logging
 
-# Add the backend directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Add the project root directory to the path so imports work correctly
+import sys
+import os
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
 from backend.rag.embeddings import EmbeddingGenerator
 from backend.qdrant.vector_db import VectorDB
@@ -41,13 +44,33 @@ app.add_middleware(
 vector_db = VectorDB(collection_name="rag_documents")
 retrieval_agent = RetrievalAgent(vector_db)
 
+# Initialize database
+from backend.db.chat_history import ChatHistoryDB
+
+# Database initialization function
+async def init_db():
+    try:
+        chat_history_db = ChatHistoryDB()
+        await chat_history_db.initialize_db()
+    except Exception as e:
+        logger.error(f"Error initializing database: {str(e)}")
+
+# Add startup event to initialize database
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+
 class QueryRequest(BaseModel):
     query: str
+    selected_text: Optional[str] = None
+    session_id: Optional[str] = None
     top_k: Optional[int] = 5
 
 class ChatRequest(BaseModel):
     query: str
+    selected_text: Optional[str] = None
     conversation_history: Optional[List[Dict[str, str]]] = []
+    session_id: Optional[str] = None
     top_k: Optional[int] = 5
 
 class DocumentIngestionRequest(BaseModel):
@@ -57,6 +80,10 @@ class DocumentResponse(BaseModel):
     response: str
     context_docs: List[Dict[str, Any]]
     query: str
+    confidence: Optional[float] = 0.0
+    sources: Optional[List[Dict[str, Any]]] = []
+    selected_text: Optional[str] = None
+    session_id: Optional[str] = None
 
 @app.get("/")
 def read_root():
@@ -82,27 +109,34 @@ def ingest_documents(request: DocumentIngestionRequest):
         raise HTTPException(status_code=500, detail=f"Error ingesting documents: {str(e)}")
 
 @app.post("/query", response_model=DocumentResponse, summary="Query the RAG system")
-def query_documents(request: QueryRequest):
+async def query_documents(request: QueryRequest):
     """
     Query the RAG system to get a response based on retrieved documents
     """
     try:
-        result = retrieval_agent.query(request.query, request.top_k)
+        result = await retrieval_agent.query(
+            request.query, 
+            request.top_k or 5, 
+            selected_text=request.selected_text or "", 
+            session_id=request.session_id or ""
+        )
         return result
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
 @app.post("/chat", response_model=DocumentResponse, summary="Chat with conversation history")
-def chat(request: ChatRequest):
+async def chat(request: ChatRequest):
     """
     Chat with the system, maintaining conversation history
     """
     try:
-        result = retrieval_agent.chat_with_history(
+        result = await retrieval_agent.chat_with_history(
             request.query,
-            request.conversation_history,
-            request.top_k
+            request.conversation_history or [],
+            request.top_k or 5,
+            selected_text=request.selected_text or "",
+            session_id=request.session_id or ""
         )
         return result
     except Exception as e:

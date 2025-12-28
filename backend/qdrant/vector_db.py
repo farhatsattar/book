@@ -10,9 +10,23 @@ load_dotenv()
 
 class VectorDB:
     def __init__(self, collection_name: str = "rag_documents"):
-        # Initialize Qdrant client (using local instance by default)
+        # Initialize Qdrant client
         qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
-        self.client = QdrantClient(url=qdrant_url)
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
+
+        try:
+            if qdrant_api_key:
+                self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+            else:
+                # Use local instance without API key
+                self.client = QdrantClient(url=qdrant_url)
+        except Exception as e:
+            print(f"Error connecting to Qdrant: {e}")
+            print("Attempting to use local in-memory storage as fallback...")
+            # Fallback to in-memory storage for testing purposes
+            from qdrant_client.http.exceptions import UnexpectedResponse
+            from qdrant_client.local.qdrant_local import QdrantLocal
+            self.client = QdrantLocal(location=":memory:")
         self.collection_name = collection_name
         self._create_collection()
 
@@ -23,43 +37,64 @@ class VectorDB:
         try:
             # Check if collection exists
             self.client.get_collection(self.collection_name)
+            print(f"Collection {self.collection_name} already exists.")
         except:
             # Create collection if it doesn't exist
-            self.client.create_collection(
+            try:
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=models.VectorParams(
+                        size=768,  # Google embeddings are 768-dimensional
+                        distance=models.Distance.COSINE
+                    )
+                )
+                print(f"Collection {self.collection_name} created successfully.")
+            except Exception as e:
+                # If collection already exists, ignore the error
+                if "already exists" in str(e):
+                    print(f"Collection {self.collection_name} already exists.")
+                else:
+                    raise e
+
+    def store_documents(self, documents: List[Dict[str, Any]], embeddings: List[List[float]], batch_size: int = 50):
+        """
+        Store documents and their embeddings in Qdrant with batching to handle large datasets
+        """
+        all_ids = []
+
+        # Process documents in batches to avoid timeout issues
+        for i in range(0, len(documents), batch_size):
+            batch_docs = documents[i:i + batch_size]
+            batch_embeddings = embeddings[i:i + batch_size]
+
+            points = []
+            for doc, embedding in zip(batch_docs, batch_embeddings):
+                point_id = str(uuid.uuid4())
+                points.append(
+                    models.PointStruct(
+                        id=point_id,
+                        vector=embedding,
+                        payload={
+                            "content": doc.get("content", ""),
+                            "url": doc.get("url", ""),
+                            "title": doc.get("title", ""),
+                            "source": doc.get("source", ""),
+                            "metadata": doc.get("metadata", {})
+                        }
+                    )
+                )
+
+            self.client.upsert(
                 collection_name=self.collection_name,
-                vectors_config=models.VectorParams(
-                    size=1024,  # Cohere embeddings are 1024-dimensional
-                    distance=models.Distance.COSINE
-                )
+                points=points
             )
 
-    def store_documents(self, documents: List[Dict[str, Any]], embeddings: List[List[float]]):
-        """
-        Store documents and their embeddings in Qdrant
-        """
-        points = []
-        for doc, embedding in zip(documents, embeddings):
-            point_id = str(uuid.uuid4())
-            points.append(
-                models.PointStruct(
-                    id=point_id,
-                    vector=embedding,
-                    payload={
-                        "content": doc.get("content", ""),
-                        "url": doc.get("url", ""),
-                        "title": doc.get("title", ""),
-                        "source": doc.get("source", ""),
-                        "metadata": doc.get("metadata", {})
-                    }
-                )
-            )
+            batch_ids = [point.id for point in points]
+            all_ids.extend(batch_ids)
 
-        self.client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
+            print(f"Stored batch {i//batch_size + 1}: {len(batch_ids)} documents")
 
-        return [point.id for point in points]
+        return all_ids
 
     def search_documents(self, query_embedding: List[float], limit: int = 5) -> List[Dict[str, Any]]:
         """

@@ -9,7 +9,7 @@ const config = {
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://your-username.github.io',
+  url: 'https://book-5zp6.vercel.app',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/ai-native-book/',
@@ -44,7 +44,7 @@ const config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/your-username/ai-native-book/tree/main/',
+            'https://github.com/farhatsattar/book.git',
         },
         blog: {
           showReadingTime: true,
@@ -83,7 +83,7 @@ const config = {
             position: 'left',
           },
           {
-            href: 'https://github.com/your-username/ai-native-book',
+            href: 'https://github.com/farhatsattar/book.git',
             label: 'GitHub',
             position: 'right',
           },
@@ -131,7 +131,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/your-username/ai-native-book',
+                href: 'https://github.com/farhatsattar/book.git',
               },
             ],
           },

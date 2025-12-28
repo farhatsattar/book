@@ -1,0 +1,233 @@
+openapi: 3.0.0
+info:
+  title: RAG Chatbot API
+  description: API for Retrieval-Augmented Generation chatbot with book content
+  version: 1.0.0
+servers:
+  - url: http://localhost:8001
+    description: Development server
+  - url: https://api.book-platform.com
+    description: Production server
+
+paths:
+  /ingest:
+    post:
+      summary: Ingest book documents into the vector database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documents:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      content:
+                        type: string
+                      metadata:
+                        type: object
+                        properties:
+                          chapter:
+                            type: string
+                          section:
+                            type: string
+                          page:
+                            type: number
+                          source_url:
+                            type: string
+                        required:
+                          - chapter
+                          - source_url
+                    required:
+                      - content
+                      - metadata
+              required:
+                - documents
+      responses:
+        '200':
+          description: Documents successfully processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  chunks_created:
+                    type: number
+                required:
+                  - status
+                  - chunks_created
+        '400':
+          description: Invalid request format
+        '500':
+          description: Internal server error
+
+  /retrieve:
+    post:
+      summary: Retrieve relevant documents based on query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                top_k:
+                  type: number
+                  default: 5
+                selected_text:
+                  type: string
+                  nullable: true
+              required:
+                - query
+      responses:
+        '200':
+          description: Retrieved relevant documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        content:
+                          type: string
+                        metadata:
+                          type: object
+                          properties:
+                            chapter:
+                              type: string
+                            section:
+                              type: string
+                            page:
+                              type: number
+                            source_url:
+                              type: string
+                        score:
+                          type: number
+                      required:
+                        - id
+                        - content
+                        - metadata
+                        - score
+                required:
+                  - query
+                  - results
+        '400':
+          description: Invalid request format
+        '500':
+          description: Internal server error
+
+  /chat:
+    post:
+      summary: Chat with the RAG system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                selected_text:
+                  type: string
+                  nullable: true
+                conversation_history:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                    required:
+                      - role
+                      - content
+                session_id:
+                  type: string
+                  nullable: true
+                top_k:
+                  type: number
+                  default: 5
+              required:
+                - query
+                - conversation_history
+      responses:
+        '200':
+          description: Chat response with sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                  sources:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        url:
+                          type: string
+                        score:
+                          type: number
+                      required:
+                        - id
+                        - title
+                        - url
+                        - score
+                  confidence:
+                    type: number
+                  selected_text_used:
+                    type: boolean
+                  session_id:
+                    type: string
+                required:
+                  - response
+                  - sources
+                  - confidence
+                  - selected_text_used
+                  - session_id
+        '400':
+          description: Invalid request format
+        '500':
+          description: Internal server error
+
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                required:
+                  - status
+                  - message

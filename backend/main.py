@@ -1,9 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
-from .rag.embeddings import EmbeddingGenerator
 from .qdrant.vector_db import VectorDB
-from .rag.document_ingestion import DocumentIngestor
 from .openai_agent.retrieval_agent import RetrievalAgent
 
 # Load environment variables

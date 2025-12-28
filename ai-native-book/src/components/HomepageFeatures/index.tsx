@@ -12,7 +12,7 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'ROS 2 Integration',
-    Svg: require('@site/static/img/robot-control-architectures.svg').default,
+    Svg: require('@site/static/img/ros.svg').default,
     description: (
       <>
         Comprehensive coverage of ROS 2 concepts, architecture, and practical applications
@@ -22,7 +22,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Physical AI Concepts',
-    Svg: require('@site/static/img/ros2-ai-integration.svg').default,
+    Svg: require('@site/static/img/embo.svg').default,
     description: (
       <>
         Deep dive into the intersection of artificial intelligence and physical systems,
@@ -32,7 +32,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Embodied Intelligence',
-    Svg: require('@site/static/img/hybrid-control-arch.svg').default,
+    Svg: require('@site/static/img/phai.svg').default,
     description: (
       <>
         Explore how AI systems can be embodied in physical robots, enabling real-world
