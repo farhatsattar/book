@@ -1,8 +1,8 @@
 import os
 import sys
 from dotenv import load_dotenv
-from .qdrant.vector_db import VectorDB
-from .openai_agent.retrieval_agent import RetrievalAgent
+from qdrant.vector_db import VectorDB
+from openai_agent.retrieval_agent import RetrievalAgent
 
 # Load environment variables
 load_dotenv()
@@ -44,3 +44,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

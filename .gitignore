@@ -69,3 +69,5 @@ pip-delete-this-directory.txt
 .Trashes
 ehthumbs.db
 Thumbs.db
+qdrant_data/*.loc
+.env

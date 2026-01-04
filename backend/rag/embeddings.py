@@ -1,92 +1,57 @@
-import google.generativeai as genai
-from typing import List, Dict, Any
-import os
-from dotenv import load_dotenv
 
-# Load environment variables
+# backend/openai_agent/embeddings.py
+import os
+from typing import List
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# Load env variables
 load_dotenv()
 
-class EmbeddingGenerator:
-    def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        genai.configure(api_key=self.api_key)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
 
+# OpenAI client (NEW SDK)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+class EmbeddingGenerator:
+    def __init__(self, model_name: str = "text-embedding-3-small"):
+        self.model_name = model_name
+        self.embedding_dim = 1536  # fixed size for embedding-3-small
+
+    # ------------------------------------
+    # Generate embeddings for documents
+    # ------------------------------------
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """
-        Generate embeddings for a list of texts using Google's embedding API
-        """
-        embeddings = []
+        embeddings: List[List[float]] = []
+
         for text in texts:
             try:
-                result = genai.embed_content(
-                    model="models/embedding-001",
-                    content=text,
-                    task_type="retrieval_document"
+                response = client.embeddings.create(
+                    model=self.model_name,
+                    input=text,
                 )
-                embeddings.append(result['embedding'])
+                embeddings.append(response.data[0].embedding)
+
             except Exception as e:
-                error_msg = str(e)
-                print(f"Error generating embedding: {e}")
-                # Check if it's a quota/rate limit error
-                if "quota" in error_msg.lower() or "rate limit" in error_msg.lower() or "429" in error_msg:
-                    print("Quota error detected for embeddings API")
-                    # For quota errors, we can try to provide a basic embedding
-                    # This is a very simple approach - in production you might want to use a different service
-                    import hashlib
-                    # Create a deterministic "embedding" based on the text hash
-                    text_hash = hashlib.md5(text.encode()).hexdigest()
-                    # Convert hash to a 768-dim vector (simplified approach)
-                    embedding = []
-                    for i in range(0, 768*2, 2):
-                        hex_pair = text_hash[i % len(text_hash):(i % len(text_hash))+2]
-                        if len(hex_pair) == 2:
-                            val = int(hex_pair, 16) / 255.0  # Normalize to 0-1
-                            embedding.append(val)
-                        else:
-                            embedding.append(0.0)
-                    # Ensure we have exactly 768 dimensions
-                    embedding = (embedding * (768 // len(embedding) + 1))[:768]
-                    embeddings.append(embedding)
-                else:
-                    # Fallback embedding (zeros) if API call fails for other reasons
-                    embeddings.append([0.0] * 768)  # Google's embedding-001 returns 768-dim vectors
+                print(f"❌ Error generating embedding: {e}")
+                embeddings.append([0.0] * self.embedding_dim)
 
         return embeddings
 
+    # ------------------------------------
+    # Generate embedding for query
+    # ------------------------------------
     def generate_query_embedding(self, query: str) -> List[float]:
-        """
-        Generate embedding for a query using Google's embedding API
-        """
         try:
-            result = genai.embed_content(
-                model="models/embedding-001",
-                content=query,
-                task_type="retrieval_query"
+            response = client.embeddings.create(
+                model=self.model_name,
+                input=query,
             )
-            return result['embedding']
+            return response.data[0].embedding
+
         except Exception as e:
-            error_msg = str(e)
-            print(f"Error generating query embedding: {e}")
-            # Check if it's a quota/rate limit error
-            if "quota" in error_msg.lower() or "rate limit" in error_msg.lower() or "429" in error_msg:
-                print("Quota error detected for query embeddings API")
-                # For quota errors, we can try to provide a basic embedding
-                # This is a very simple approach - in production you might want to use a different service
-                import hashlib
-                # Create a deterministic "embedding" based on the text hash
-                text_hash = hashlib.md5(query.encode()).hexdigest()
-                # Convert hash to a 768-dim vector (simplified approach)
-                embedding = []
-                for i in range(0, 768*2, 2):
-                    hex_pair = text_hash[i % len(text_hash):(i % len(text_hash))+2]
-                    if len(hex_pair) == 2:
-                        val = int(hex_pair, 16) / 255.0  # Normalize to 0-1
-                        embedding.append(val)
-                    else:
-                        embedding.append(0.0)
-                # Ensure we have exactly 768 dimensions
-                embedding = (embedding * (768 // len(embedding) + 1))[:768]
-                return embedding
-            else:
-                # Fallback embedding (zeros) if API call fails for other reasons
-                return [0.0] * 768  # Google's embedding-001 returns 768-dim vectors
+            print(f"❌ Error generating query embedding: {e}")
+            return [0.0] * self.embedding_dim
