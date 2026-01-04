@@ -4,6 +4,8 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import styles from './index.module.css';
+import Chatbot from '../components/Chatbot/Chatbot.jsx';
+
 
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
@@ -107,6 +109,10 @@ export default function Home() {
                     Integrated RAG-powered chatbot provides instant answers to your questions,
                     making learning more interactive and efficient.
                   </p>
+                  {/*  Chatbot React Component */}
+                 <Chatbot
+                 apiUrl="http://localhost:8001" // ya aapka backend URL
+                 />
                   <div className={styles.botIcon}>💬</div>
                 </div>
               </div>

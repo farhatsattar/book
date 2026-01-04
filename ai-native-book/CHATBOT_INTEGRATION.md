@@ -22,9 +22,8 @@ This Docusaurus-based textbook features an integrated AI chatbot that provides i
 ### Backend
 - **API Server**: FastAPI backend in `/backend/api/main.py`
 - **Services**:
-  - Cohere for embeddings
+  - Google Gemini for embeddings and response generation
   - Qdrant for vector storage
-  - OpenAI for response generation
   - Neon Postgres for chat history
 
 ## Setup Instructions
@@ -33,7 +32,7 @@ This Docusaurus-based textbook features an integrated AI chatbot that provides i
 
 ```bash
 cd backend
-uvicorn api.main:app --reload
+python -m uvicorn api.main:app --reload --port 8001
 ```
 
 ### 2. Start the Docusaurus Frontend
@@ -48,7 +47,7 @@ npm start
 The frontend connects to the backend via the environment variable in `.env`:
 
 ```
-REACT_APP_API_BASE_URL=http://localhost:8000
+REACT_APP_API_BASE_URL=http://localhost:8001
 ```
 
 ## Usage
@@ -74,7 +73,7 @@ import Chatbot from '@site/src/components/Chatbot';
 
 ### Environment Variables
 
-- `REACT_APP_API_BASE_URL`: Backend API URL (default: http://localhost:8000)
+- `REACT_APP_API_BASE_URL`: Backend API URL (default: http://localhost:8001)
 
 ## Troubleshooting
 

@@ -25,7 +25,7 @@ The chatbot requires the backend API to be running:
 ```bash
 # From the backend directory
 cd backend
-uvicorn api.main:app --reload
+python -m uvicorn api.main:app --reload --port 8001
 ```
 
 ## Configuration
@@ -33,7 +33,7 @@ uvicorn api.main:app --reload
 The frontend connects to the backend API via the environment variable in `.env`:
 
 ```
-REACT_APP_API_BASE_URL=http://localhost:8000
+REACT_APP_API_BASE_URL=http://localhost:8001
 ```
 
 ## Troubleshooting
