@@ -71,3 +71,6 @@ ehthumbs.db
 Thumbs.db
 qdrant_data/*.loc
 .env
+# Qdrant runtime data
+qdrant_data/
+.qdrant/
