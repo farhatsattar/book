@@ -1,53 +1,98 @@
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
 import os
-from dotenv import load_dotenv
 import sys
 import logging
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
 
-# Add the backend directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# ------------------------------------------------------------------
+# Project root path (for relative imports)
+# ------------------------------------------------------------------
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
-from backend.rag.embeddings import EmbeddingGenerator
-from backend.qdrant.vector_db import VectorDB
-from backend.rag.document_ingestion import DocumentIngestor
-from backend.openai_agent.retrieval_agent import RetrievalAgent
-
+# ------------------------------------------------------------------
 # Load environment variables
+# ------------------------------------------------------------------
 load_dotenv()
 
-# Initialize logging
+# ------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------------------
+# Imports after path fix
+# ------------------------------------------------------------------
+from backend.rag.embeddings import EmbeddingGenerator
+from backend.qdrant.vector_db import VectorDB
+from backend.openai_agent.retrieval_agent import RetrievalAgent
+from backend.db.chat_history import ChatHistoryDB
+from backend.rag.document_ingestion import DocumentIngestor
+
+# ------------------------------------------------------------------
+# FastAPI app
+# ------------------------------------------------------------------
 app = FastAPI(
     title="RAG Chatbot API",
-    description="API for RAG-based chatbot with document retrieval capabilities",
-    version="1.0.0"
+    description="RAG-based chatbot with OpenAI embeddings and Qdrant",
+    version="1.0.0",
 )
 
-# Add CORS middleware
+# ------------------------------------------------------------------
+# CORS for local frontend dev
+# ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize global components
-vector_db = VectorDB(collection_name="rag_documents")
-retrieval_agent = RetrievalAgent(vector_db)
+# ------------------------------------------------------------------
+# Startup event: initialize vector DB, agent, chat history
+# ------------------------------------------------------------------
+@app.on_event("startup")
+async def startup_event():
+    try:
+        logger.info("🚀 Initializing RAG system...")
 
+        vector_db = VectorDB(collection_name="rag_documents_1536")  # 1536-dim for OpenAI
+        retrieval_agent = RetrievalAgent(vector_db)
+
+        app.state.vector_db = vector_db
+        app.state.retrieval_agent = retrieval_agent
+
+        chat_history_db = ChatHistoryDB()
+        await chat_history_db.initialize_db()
+        app.state.chat_history_db = chat_history_db
+
+        logger.info("✅ RAG system initialized successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Startup failed: {e}")
+        app.state.vector_db = None
+        app.state.retrieval_agent = None
+        app.state.chat_history_db = None
+
+# ------------------------------------------------------------------
+# Request / Response Models
+# ------------------------------------------------------------------
 class QueryRequest(BaseModel):
     query: str
+    selected_text: Optional[str] = None
+    session_id: Optional[str] = None
     top_k: Optional[int] = 5
 
 class ChatRequest(BaseModel):
     query: str
+    selected_text: Optional[str] = None
     conversation_history: Optional[List[Dict[str, str]]] = []
+    session_id: Optional[str] = None
     top_k: Optional[int] = 5
 
 class DocumentIngestionRequest(BaseModel):
@@ -57,83 +102,90 @@ class DocumentResponse(BaseModel):
     response: str
     context_docs: List[Dict[str, Any]]
     query: str
+    confidence: Optional[float] = 0.0
+    sources: Optional[List[Dict[str, Any]]] = []
+    selected_text: Optional[str] = None
+    session_id: Optional[str] = None
 
+# ------------------------------------------------------------------
+# Health & root
+# ------------------------------------------------------------------
 @app.get("/")
-def read_root():
-    return {"message": "RAG Chatbot API is running!"}
+def root():
+    return {"message": "RAG Chatbot API is running"}
 
-@app.post("/ingest", summary="Ingest documents from URLs")
-def ingest_documents(request: DocumentIngestionRequest):
-    """
-    Ingest documents from provided URLs into the vector database
-    """
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+# ------------------------------------------------------------------
+# Ingest documents
+# ------------------------------------------------------------------
+@app.post("/ingest")
+def ingest_documents(req: DocumentIngestionRequest, request: Request):
+    vector_db = request.app.state.vector_db
+    if vector_db is None:
+        raise HTTPException(status_code=503, detail="Vector DB not available")
+
     try:
         embedding_gen = EmbeddingGenerator()
         ingestor = DocumentIngestor(embedding_gen, vector_db)
-
-        document_ids = ingestor.ingest_documents(request.urls)
-
+        document_ids = ingestor.ingest_documents(req.urls)
         return {
             "message": f"Successfully ingested {len(document_ids)} document chunks",
-            "document_ids": document_ids
+            "document_ids": document_ids,
         }
     except Exception as e:
-        logger.error(f"Error ingesting documents: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error ingesting documents: {str(e)}")
+        logger.error(f"Ingest error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/query", response_model=DocumentResponse, summary="Query the RAG system")
-def query_documents(request: QueryRequest):
-    """
-    Query the RAG system to get a response based on retrieved documents
-    """
-    try:
-        result = retrieval_agent.query(request.query, request.top_k)
-        return result
-    except Exception as e:
-        logger.error(f"Error processing query: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+# ------------------------------------------------------------------
+# Chat endpoint
+# ------------------------------------------------------------------
+@app.post("/chat", response_model=DocumentResponse)
+async def chat(request_data: ChatRequest, request: Request):
+    agent = request.app.state.retrieval_agent
+    if agent is None:
+        raise HTTPException(status_code=503, detail="RAG system not available")
 
-@app.post("/chat", response_model=DocumentResponse, summary="Chat with conversation history")
-def chat(request: ChatRequest):
-    """
-    Chat with the system, maintaining conversation history
-    """
-    try:
-        result = retrieval_agent.chat_with_history(
-            request.query,
-            request.conversation_history,
-            request.top_k
-        )
-        return result
-    except Exception as e:
-        logger.error(f"Error processing chat: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing chat: {str(e)}")
+    print("🔥 /chat HIT")
+    print("🔥 USER QUERY:", request_data.query)
 
-@app.get("/search", summary="Search documents directly")
-def search_documents(query: str = Query(..., min_length=1), top_k: int = Query(5, ge=1, le=20)):
-    """
-    Direct search of documents in the vector database
-    """
+    result = await agent.chat(
+        query=request_data.query,
+        top_k=request_data.top_k or 5,
+        selected_text=request_data.selected_text,
+        session_id=request_data.session_id,
+    )
+
+    print("🔥 BOT RESPONSE:", result.get("response"))
+    return result
+
+# ------------------------------------------------------------------
+# Direct vector search (debug)
+# ------------------------------------------------------------------
+@app.get("/search")
+def search_documents(
+    query: str = Query(..., min_length=1),
+    top_k: int = Query(5, ge=1, le=20),
+    request: Request = None,
+):
+    vector_db = request.app.state.vector_db
+    if vector_db is None:
+        raise HTTPException(status_code=503, detail="Vector DB not available")
+
     try:
         embedding_gen = EmbeddingGenerator()
         query_embedding = embedding_gen.generate_query_embedding(query)
         results = vector_db.search_documents(query_embedding, limit=top_k)
-
-        return {
-            "query": query,
-            "results": results
-        }
+        return {"query": query, "results": results}
     except Exception as e:
-        logger.error(f"Error searching documents: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/health", summary="Health check endpoint")
-def health_check():
-    """
-    Health check endpoint to verify API is running
-    """
-    return {"status": "healthy", "message": "RAG Chatbot API is operational"}
-
+# ------------------------------------------------------------------
+# Run locally
+# ------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)

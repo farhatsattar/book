@@ -55,9 +55,9 @@ if __name__ == "__main__":
     load_dotenv()  # Load environment variables
 
     # Check if required environment variables are set
-    if not os.getenv("COHERE_API_KEY"):
-        print("Error: COHERE_API_KEY environment variable is not set!")
-        print("Please set your Cohere API key in a .env file")
+    if not os.getenv("GEMINI_API_KEY"):
+        print("Error: GEMINI_API_KEY environment variable is not set!")
+        print("Please set your Gemini API key in a .env file")
         sys.exit(1)
 
     test_ingestion_pipeline()

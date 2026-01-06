@@ -1,123 +1,89 @@
+# backend/openai_agent/retrieval_agent.py
+from typing import List, Dict, Optional, Any
+from backend.rag.embeddings import EmbeddingGenerator
+from backend.qdrant.vector_db import VectorDB
 import openai
-from typing import List, Dict, Any
-import os
-from dotenv import load_dotenv
-from ..rag.embeddings import EmbeddingGenerator
-from ..qdrant.vector_db import VectorDB
+import logging
 
-# Load environment variables
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 class RetrievalAgent:
-    def __init__(self, vector_db: VectorDB):
+    def __init__(self, vector_db: VectorDB, gpt_model: str = "gpt-3.5-turbo"):
         self.vector_db = vector_db
         self.embedding_generator = EmbeddingGenerator()
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.gpt_model = gpt_model
 
-    def retrieve_context(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Retrieve relevant documents based on the query
-        """
+    def retrieve_context(
+        self,
+        query: str,
+        top_k: int = 5,
+        selected_text: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+
         query_embedding = self.embedding_generator.generate_query_embedding(query)
         results = self.vector_db.search_documents(query_embedding, limit=top_k)
+
+        if selected_text:
+            selected_embedding = self.embedding_generator.generate_query_embedding(selected_text)
+            selected_results = self.vector_db.search_documents(selected_embedding, limit=top_k)
+
+            # Combine + deduplicate
+            seen_ids = set()
+            combined = []
+            for r in selected_results + results:
+                if r.get("title") not in seen_ids:
+                    combined.append(r)
+                    seen_ids.add(r.get("title"))
+            return combined[:top_k]
+
         return results
 
-    def generate_response(self, query: str, context_docs: List[Dict[str, Any]]) -> str:
-        """
-        Generate a response using OpenAI with retrieved context
-        """
-        # Format context for the prompt
-        context_text = "\n\n".join([
-            f"Document {i+1}:\n{doc['content'][:500]}..."
-            for i, doc in enumerate(context_docs)
-        ])
+    def generate_response(
+        self,
+        query: str,
+        context_docs: List[Dict[str, Any]],
+        selected_text: Optional[str] = None
+    ) -> str:
+        context_text = ""
+        for i, doc in enumerate(context_docs):
+            context_text += f"Document {i+1} - {doc.get('title', 'Unknown')}\n{doc.get('content', '')[:500]}\n\n"
 
-        # Create the prompt with context
-        system_prompt = f"""You are a helpful assistant for robotics and AI topics.
-        Use the following context to answer the user's question.
-        If the context doesn't contain relevant information, say so.
-
-        Context:
-        {context_text}"""
+        prompt = (
+            f"You are a helpful assistant. Use the context to answer the user's question.\n\n"
+            f"Context:\n{context_text}\nUser Query: {query}"
+        )
+        if selected_text:
+            prompt += f"\nUser highlighted: {selected_text}"
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  # You can change this to gpt-4 if preferred
+            response = openai.chat.completions.create(
+                model=self.gpt_model,
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
                 ],
-                max_tokens=500,
-                temperature=0.7
+                temperature=0.7,
+                max_tokens=500
             )
-
             return response.choices[0].message.content
         except Exception as e:
-            return f"Error generating response: {str(e)}"
+            logger.error(f"❌ GPT error: {e}")
+            return "I'm sorry, I couldn't generate a response."
 
-    def query(self, user_query: str, top_k: int = 5) -> Dict[str, Any]:
-        """
-        Complete query pipeline: retrieve context and generate response
-        """
-        # Retrieve relevant documents
-        context_docs = self.retrieve_context(user_query, top_k)
-
-        # Generate response based on context
-        response = self.generate_response(user_query, context_docs)
-
+    async def chat(
+        self,
+        query: str,
+        top_k: int = 5,
+        selected_text: Optional[str] = None,
+        session_id: Optional[str] = None   # <-- added session support
+    ):
+        logger.info(f"🔥 CHAT QUERY: {query}")
+        context_docs = self.retrieve_context(query, top_k, selected_text)
+        response_text = self.generate_response(query, context_docs, selected_text)
         return {
-            "response": response,
+            "response": response_text,
             "context_docs": context_docs,
-            "query": user_query
+            "query": query,
+            "selected_text": selected_text,
+            "session_id": session_id
         }
-
-    def chat_with_history(self, user_query: str, conversation_history: List[Dict[str, str]], top_k: int = 5) -> Dict[str, Any]:
-        """
-        Chat with history, incorporating conversation context
-        """
-        # Retrieve relevant documents based on current query
-        context_docs = self.retrieve_context(user_query, top_k)
-
-        # Format context
-        context_text = "\n\n".join([
-            f"Document {i+1}:\n{doc['content'][:500]}..."
-            for i, doc in enumerate(context_docs)
-        ])
-
-        # Create system prompt with context
-        system_prompt = f"""You are a helpful assistant for robotics and AI topics.
-        Use the following context to answer the user's question.
-        If the context doesn't contain relevant information, say so.
-
-        Context:
-        {context_text}"""
-
-        # Prepare messages including conversation history
-        messages = [{"role": "system", "content": system_prompt}]
-
-        # Add conversation history
-        for msg in conversation_history:
-            messages.append({"role": msg["role"], "content": msg["content"]})
-
-        # Add current user query
-        messages.append({"role": "user", "content": user_query})
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                max_tokens=500,
-                temperature=0.7
-            )
-
-            return {
-                "response": response.choices[0].message.content,
-                "context_docs": context_docs,
-                "query": user_query
-            }
-        except Exception as e:
-            return {
-                "response": f"Error generating response: {str(e)}",
-                "context_docs": [],
-                "query": user_query
-            }

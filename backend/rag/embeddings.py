@@ -1,33 +1,57 @@
-import cohere
-from typing import List, Dict, Any
-import os
-from dotenv import load_dotenv
 
-# Load environment variables
+# backend/openai_agent/embeddings.py
+import os
+from typing import List
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# Load env variables
 load_dotenv()
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
+
+# OpenAI client (NEW SDK)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 class EmbeddingGenerator:
-    def __init__(self):
-        self.co = cohere.Client(os.getenv("COHERE_API_KEY"))
+    def __init__(self, model_name: str = "text-embedding-3-small"):
+        self.model_name = model_name
+        self.embedding_dim = 1536  # fixed size for embedding-3-small
 
+    # ------------------------------------
+    # Generate embeddings for documents
+    # ------------------------------------
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """
-        Generate embeddings for a list of texts using Cohere
-        """
-        response = self.co.embed(
-            texts=texts,
-            model="embed-english-v3.0",  # Using Cohere's latest embedding model
-            input_type="search_document"
-        )
-        return response.embeddings
+        embeddings: List[List[float]] = []
 
+        for text in texts:
+            try:
+                response = client.embeddings.create(
+                    model=self.model_name,
+                    input=text,
+                )
+                embeddings.append(response.data[0].embedding)
+
+            except Exception as e:
+                print(f"❌ Error generating embedding: {e}")
+                embeddings.append([0.0] * self.embedding_dim)
+
+        return embeddings
+
+    # ------------------------------------
+    # Generate embedding for query
+    # ------------------------------------
     def generate_query_embedding(self, query: str) -> List[float]:
-        """
-        Generate embedding for a query using Cohere
-        """
-        response = self.co.embed(
-            texts=[query],
-            model="embed-english-v3.0",
-            input_type="search_query"
-        )
-        return response.embeddings[0]
+        try:
+            response = client.embeddings.create(
+                model=self.model_name,
+                input=query,
+            )
+            return response.data[0].embedding
+
+        except Exception as e:
+            print(f"❌ Error generating query embedding: {e}")
+            return [0.0] * self.embedding_dim
