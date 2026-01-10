@@ -8,9 +8,9 @@ from openai import OpenAI
 # Load env variables
 load_dotenv()
 
-# Check if API key exists
-if "OPENAI_API_KEY" not in os.environ:
-    raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
+# # Check if API key exists
+# if "OPENAI_API_KEY" not in os.environ:
+#     raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
 
 # OpenAI client (NEW SDK)
 client = OpenAI()
