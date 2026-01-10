@@ -8,12 +8,12 @@ from openai import OpenAI
 # Load env variables
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
+# Check if API key exists
+if "OPENAI_API_KEY" not in os.environ:
     raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
 
 # OpenAI client (NEW SDK)
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI()
 
 
 class EmbeddingGenerator:
