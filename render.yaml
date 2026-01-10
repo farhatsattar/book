@@ -2,9 +2,8 @@ services:
   - type: web
     name: book-backend
     env: python
-    python_version: "3.12"
-    # Install dependencies
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # Start FastAPI app
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+
 
