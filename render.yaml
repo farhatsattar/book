@@ -2,8 +2,11 @@ services:
   - type: web
     name: book-backend
     env: python
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    rootDir: .
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: |
+      export PYTHONPATH=backend
+      uvicorn api.main:app --host 0.0.0.0 --port $PORT
+
 
 
