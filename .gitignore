@@ -74,3 +74,4 @@ qdrant_data/*.loc
 # Qdrant runtime data
 qdrant_data/
 .qdrant/
+.env
