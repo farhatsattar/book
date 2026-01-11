@@ -285,3 +285,4 @@ const Chatbot = ({ apiUrl } = {}) => {
 };
 
 export default Chatbot;
+"// Cache busting $(date)" 
