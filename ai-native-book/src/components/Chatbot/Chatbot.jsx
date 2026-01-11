@@ -149,7 +149,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from './Chatbot.module.css';
 
-const Chatbot = () => {
+const Chatbot = ({ apiUrl } = {}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { id: 1, text: "Hello! I'm your RAG-powered chatbot. How can I help you with the book content today?", sender: 'bot' }
@@ -184,8 +184,8 @@ const Chatbot = () => {
     try {
       const textToUse = selectedText || inputValue;
 
-      // ✅ Always use the production backend URL to avoid any localhost fallback
-      const API_BASE_URL = 'https://book-1-3piy.onrender.com';
+      // ✅ Use API URL from props, fallback to production backend URL to avoid any localhost fallback
+      const API_BASE_URL = apiUrl || 'https://book-1-3piy.onrender.com';
       const fullUrl = `${API_BASE_URL}/chat`;
 
       const response = await fetch(fullUrl, {

@@ -111,7 +111,7 @@ export default function Home() {
                   </p>
                   {/*  Chatbot React Component */}
                  <Chatbot
-                 apiUrl="http://localhost:8001" // ya aapka backend URL
+                 apiUrl="https://book-1-3piy.onrender.com" // Production backend URL
                  />
                   <div className={styles.botIcon}>💬</div>
                 </div>

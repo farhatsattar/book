@@ -7,7 +7,7 @@ export default function Layout(props) {
     <>
       <OriginalLayout {...props}>
         {props.children}
-        <Chatbot />
+        <Chatbot apiUrl="https://book-1-3piy.onrender.com" />
       </OriginalLayout>
     </>
   );
