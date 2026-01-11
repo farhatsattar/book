@@ -185,8 +185,13 @@ const Chatbot = ({ apiUrl } = {}) => {
       const textToUse = selectedText || inputValue;
 
       // ✅ Use API URL from props, fallback to production backend URL to avoid any localhost fallback
+      // Ensure we never use localhost in any environment
       const API_BASE_URL = apiUrl || 'https://book-1-3piy.onrender.com';
-      const fullUrl = `${API_BASE_URL}/chat`;
+      // Double-check: if for any reason we get localhost, force production URL
+      const finalUrl = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1')
+        ? 'https://book-1-3piy.onrender.com'
+        : API_BASE_URL;
+      const fullUrl = `${finalUrl}/chat`;
 
       const response = await fetch(fullUrl, {
         method: 'POST',
