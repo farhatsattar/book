@@ -12,8 +12,8 @@ load_dotenv()
 # if "OPENAI_API_KEY" not in os.environ:
 #     raise RuntimeError("❌ OPENAI_API_KEY not found in environment variables")
 
-# OpenAI client (NEW SDK)
-client = OpenAI()
+# OpenAI client (NEW SDK) - set API key from environment
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class EmbeddingGenerator:

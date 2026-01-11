@@ -6,7 +6,25 @@ import os
 
 class VectorDB:
     def __init__(self, collection_name: str = "rag_documents_1536"):
-        self.client = QdrantClient(path="./qdrant_data")
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        # Use cloud Qdrant instance for production, local for development
+        qdrant_url = os.getenv("QDRANT_URL")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
+
+        if qdrant_url and qdrant_api_key:
+            # Use cloud instance for production (Render deployment)
+            self.client = QdrantClient(
+                url=qdrant_url,
+                api_key=qdrant_api_key,
+                https=True
+            )
+        else:
+            # Fallback to local instance for development
+            self.client = QdrantClient(path="./qdrant_data")
+
         self.collection_name = collection_name
         self._create_collection()
 

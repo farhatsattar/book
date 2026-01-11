@@ -3,7 +3,13 @@ from typing import List, Dict, Optional, Any
 from backend.rag.embeddings import EmbeddingGenerator
 from backend.qdrant.vector_db import VectorDB
 import openai
+import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables and set OpenAI API key
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 logger = logging.getLogger(__name__)
 
