@@ -38,9 +38,8 @@ const Chatbot = () => {
     try {
       const textToUse = selectedText || inputValue;
 
-      // API Base URL
-      const API_BASE_URL = import.meta.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
-
+      // CRA environment variable or fallback URL
+      const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://book-1-3piy.onrender.com';
       const fullUrl = `${API_BASE_URL}/chat`;
 
       // POST request
